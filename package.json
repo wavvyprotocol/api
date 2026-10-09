@@ -1,0 +1,43 @@
+{
+  "name": "wavvy-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hono API for Wavvy markets, feed, portfolio, creators, and curators",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/*.test.ts\"",
+    "test:contract": "newman run postman/wavvy-api.json --env-var baseUrl=http://127.0.0.1:8787",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:studio": "drizzle-kit studio",
+    "contract:server": "tsx scripts/contract-server.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.4",
+    "@hono/zod-validator": "0.9.1",
+    "@privy-io/server-auth": "1.32.5",
+    "@upstash/ratelimit": "2.2.0",
+    "@upstash/redis": "1.39.0",
+    "drizzle-kit": "0.31.11",
+    "drizzle-orm": "0.45.4",
+    "hono": "4.13.13",
+    "pino": "10.4.0",
+    "postgres": "3.4.9",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "viem": "2.57.4",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@hono/cli": "1.0.0-rc.0",
+    "@types/node": "26.6.4",
+    "newman": "6.2.2"
+  }
+}

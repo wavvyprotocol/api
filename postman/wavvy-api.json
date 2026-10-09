@@ -1,0 +1,1366 @@
+{
+  "info": {
+    "name": "wavvy-api",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Contract suite for wavvy-api. Public reads must answer 200 with the shared shapes; authenticated writes must reject unauthenticated callers with 401. Set privyToken to a real Privy access token to exercise the happy paths by hand, the headless run asserts the rejection paths so it needs no credentials. baseUrl defaults to http://127.0.0.1:8787. Write endpoints answer 503 instead of 401 when PRIVY_APP_ID/PRIVY_APP_SECRET are unset, so the rejection assertions accept both."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8787"
+    },
+    {
+      "key": "privyToken",
+      "value": ""
+    },
+    {
+      "key": "marketId",
+      "value": "6"
+    },
+    {
+      "key": "wallet",
+      "value": "0x00000AC095ab728FeeBef880A3D4801f71732808"
+    },
+    {
+      "key": "creatorId",
+      "value": "0x1492be02270daebdb317d7cdeb55a81266fb4a1ddcdcc19f3dd49d64bae6db9c"
+    }
+  ],
+  "item": [
+    {
+      "name": "Public reads",
+      "item": [
+        {
+          "name": "health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "markets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/markets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "markets"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "market detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/markets/{{marketId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "markets",
+                "{{marketId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200, 404];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "positions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/positions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "positions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "positions by owner",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/positions?owner={{wallet}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "positions?owner={{wallet}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "position detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/positions/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "positions",
+                "1"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200, 404];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "feed",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/feed",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "feed"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "portfolio",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/portfolio/{{wallet}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "portfolio",
+                "{{wallet}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "leaderboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/leaderboard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leaderboard"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "curators",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/curators",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "curators"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "creators unclaimed",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creators/unclaimed",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creators",
+                "unclaimed"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "frame for a position",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/frames/position/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "frames",
+                "position",
+                "1"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200, 404, 503];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Validation",
+      "item": [
+        {
+          "name": "market id must be numeric",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/markets/abc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "markets",
+                "abc"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [400];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "unknown market 404s",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/markets/999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "markets",
+                "999999"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [404];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "portfolio wallet must be an address",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/portfolio/not-a-wallet",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "portfolio",
+                "not-a-wallet"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [400];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "unknown route",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/definitely-not-a-route",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "definitely-not-a-route"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [404];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth rejection",
+      "item": [
+        {
+          "name": "thesis without a token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/feed/1/thesis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "feed",
+                "1",
+                "thesis"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"thesis\": \"contract suite\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [401, 404, 503];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "description": "401 when Privy credentials are configured (a bad or missing token), 503 when the deployment has no auth configured: both are rejections."
+        },
+        {
+          "name": "reaction without a token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/feed/1/react",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "feed",
+                "1",
+                "react"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"like\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [401, 404, 503];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "description": "401 when Privy credentials are configured (a bad or missing token), 503 when the deployment has no auth configured: both are rejections."
+        },
+        {
+          "name": "reply without a token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/feed/1/reply",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "feed",
+                "1",
+                "reply"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"contract suite\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [401, 404, 503];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "description": "401 when Privy credentials are configured (a bad or missing token), 503 when the deployment has no auth configured: both are rejections."
+        },
+        {
+          "name": "curator call without a token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/curators/calls",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "curators",
+                "calls"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"marketId\": 6,\n  \"targetTrader\": \"0x00000AC095ab728FeeBef880A3D4801f71732808\",\n  \"thesis\": \"contract suite\",\n  \"stakeAmount\": \"1\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [401, 503];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "description": "401 when Privy credentials are configured (a bad or missing token), 503 when the deployment has no auth configured: both are rejections."
+        },
+        {
+          "name": "creator challenge without a token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "verify"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"platform\": \"youtube\",\n  \"handle\": \"MrBeast\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [401, 503];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "description": "401 when Privy credentials are configured (a bad or missing token), 503 when the deployment has no auth configured: both are rejections."
+        },
+        {
+          "name": "creator claim without a token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/claim",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "claim"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"creatorId\": \"{{creatorId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [401, 503];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "description": "401 when Privy credentials are configured (a bad or missing token), 503 when the deployment has no auth configured: both are rejections."
+        }
+      ]
+    },
+    {
+      "name": "Authenticated writes",
+      "item": [
+        {
+          "name": "thesis with a bearer token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              },
+              {
+                "key": "authorization",
+                "value": "Bearer {{privyToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/feed/1/thesis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "feed",
+                "1",
+                "thesis"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"thesis\": \"contract suite\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200, 400, 401, 403, 404, 503];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "description": "401 when Privy credentials are configured (a bad or missing token), 503 when the deployment has no auth configured: both are rejections."
+        },
+        {
+          "name": "reaction with a bearer token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              },
+              {
+                "key": "authorization",
+                "value": "Bearer {{privyToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/feed/1/react",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "feed",
+                "1",
+                "react"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"like\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200, 400, 401, 404, 503];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "description": "401 when Privy credentials are configured (a bad or missing token), 503 when the deployment has no auth configured: both are rejections."
+        },
+        {
+          "name": "reply with a bearer token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              },
+              {
+                "key": "authorization",
+                "value": "Bearer {{privyToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/feed/1/reply",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "feed",
+                "1",
+                "reply"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"contract suite\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [201, 400, 401, 404, 503];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "description": "401 when Privy credentials are configured (a bad or missing token), 503 when the deployment has no auth configured: both are rejections."
+        },
+        {
+          "name": "curator call with a bearer token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              },
+              {
+                "key": "authorization",
+                "value": "Bearer {{privyToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/curators/calls",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "curators",
+                "calls"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"marketId\": 6,\n  \"targetTrader\": \"0x00000AC095ab728FeeBef880A3D4801f71732808\",\n  \"thesis\": \"contract suite\",\n  \"stakeAmount\": \"1\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [201, 400, 401, 403, 503];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "description": "401 when Privy credentials are configured (a bad or missing token), 503 when the deployment has no auth configured: both are rejections."
+        },
+        {
+          "name": "creator challenge with a bearer token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              },
+              {
+                "key": "authorization",
+                "value": "Bearer {{privyToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "verify"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"platform\": \"youtube\",\n  \"handle\": \"MrBeast\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200, 201, 400, 401, 409, 503];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "description": "401 when Privy credentials are configured (a bad or missing token), 503 when the deployment has no auth configured: both are rejections."
+        },
+        {
+          "name": "creator claim with a bearer token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              },
+              {
+                "key": "authorization",
+                "value": "Bearer {{privyToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/claim",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "claim"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"creatorId\": \"{{creatorId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200, 400, 401, 403, 409, 503];",
+                  "pm.test(`status is one of ${expected.join(', ')}`, function () {",
+                  "  pm.expect(expected).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('response carries the shared error shape when 4xx/5xx', function () {",
+                  "  if (pm.response.code >= 400) {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('error');",
+                  "    pm.expect(body.error).to.have.property('code');",
+                  "    pm.expect(body.error).to.have.property('message');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "description": "401 when Privy credentials are configured (a bad or missing token), 503 when the deployment has no auth configured: both are rejections."
+        }
+      ]
+    }
+  ]
+}
