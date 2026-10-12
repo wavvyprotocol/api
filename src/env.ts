@@ -40,7 +40,12 @@ const envSchema = z.object({
 export type Env = z.infer<typeof envSchema>;
 
 export function parseEnv(source: Record<string, string | undefined>): Env {
-  const parsed = envSchema.safeParse(source);
+  // A variable set to an empty string counts as absent: a placeholder line in
+  // .env must not fail validation for an optional variable.
+  const filled = Object.fromEntries(
+    Object.entries(source).filter(([, value]) => typeof value !== "string" || value.trim() !== ""),
+  );
+  const parsed = envSchema.safeParse(filled);
   if (!parsed.success) {
     const details = parsed.error.issues
       .map((issue) => `${issue.path.join(".")}: ${issue.message}`)

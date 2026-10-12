@@ -3,7 +3,14 @@ import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import type { AuthVerifier } from "../src/auth.ts";
 import { createApp, type AppDeps } from "../src/app.ts";
-import type { ChainPosition, ChainReader, MarketInfo, OracleStatus, StakeVerification } from "../src/chain/reader.ts";
+import type {
+  ChainPosition,
+  ChainReader,
+  MarketInfo,
+  OracleStatus,
+  OracleStatusBatchEntry,
+  StakeVerification,
+} from "../src/chain/reader.ts";
 import type { Database } from "../src/db/client.ts";
 import { ensureUser } from "../src/db/queries.ts";
 import * as schema from "../src/db/schema.ts";
@@ -73,13 +80,30 @@ export function fakeChain(options: FakeChainOptions = {}): ChainReader {
     openInterestShort: 2_000_000_000_000_000_000n,
   };
 
-  return {
+  const chain: ChainReader = {
     async marketInfo(marketId: number): Promise<MarketInfo> {
       const override = options.markets?.[marketId];
       if (override?.exists === false) {
         return { marketId, exists: false, type: "unknown", metricId: null, creatorIds: [], markPrice: null, fundingGrowth: 0n, openInterestLong: 0n, openInterestShort: 0n };
       }
       return { marketId, ...marketDefaults, ...override, exists: true } as MarketInfo;
+    },
+    async marketInfoBatch(marketIds: readonly number[]): Promise<Map<number, MarketInfo>> {
+      const result = new Map<number, MarketInfo>();
+      for (const marketId of new Set(marketIds)) {
+        result.set(marketId, await chain.marketInfo(marketId));
+      }
+      return result;
+    },
+    async oracleStatusBatch(
+      metricIds: readonly `0x${string}`[],
+    ): Promise<Map<`0x${string}`, OracleStatusBatchEntry>> {
+      const result = new Map<`0x${string}`, OracleStatusBatchEntry>();
+      for (const metricId of new Set(metricIds)) {
+        const status = await chain.oracleStatus(metricId);
+        result.set(metricId, { ...status, twap24h: options.twaps?.[metricId] ?? 500_000_000n });
+      }
+      return result;
     },
     async oracleStatus(metricId: `0x${string}`): Promise<OracleStatus> {
       const override = options.oracle?.[metricId] ?? {};
@@ -149,6 +173,8 @@ export function fakeChain(options: FakeChainOptions = {}): ChainReader {
       return { status: "verified", callId: "7", stake: args.stakeAmount };
     },
   };
+
+  return chain;
 }
 
 export type TestAppOptions = {

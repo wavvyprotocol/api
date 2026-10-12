@@ -17,26 +17,37 @@ export function marketsRoutes(deps: RouteDeps): Hono<AppEnv> {
   app.get("/", deps.limits.read, async (c) => {
     const db = requireDb(deps);
     const rows = await queries.listMarkets(db);
-    const cards = await Promise.all(
-      rows.map(async (market) => {
-        const info = await deps.chain.marketInfo(market.id);
-        const status = await oracleStatus(deps, asMetricId(market.metricId));
-        return {
-          marketId: market.id,
-          type: market.type,
-          status: market.status,
-          metricId: market.metricId,
-          markPrice: info.markPrice === null ? null : formatWad(info.markPrice),
-          metricValue: status?.value === undefined ? null : status.value.toString(),
-          change24hBps: status?.change24hBps ?? null,
-          oracleState: status?.state ?? "not_registered",
-          openInterestLong: formatWad(info.openInterestLong),
-          openInterestShort: formatWad(info.openInterestShort),
-          fundingGrowth: info.fundingGrowth.toString(),
-          updatedAt: new Date().toISOString(),
-        };
-      }),
-    );
+    const metricIds = rows
+      .map((market) => asMetricId(market.metricId))
+      .filter((metricId): metricId is `0x${string}` => metricId !== null);
+    const [infos, statuses] = await Promise.all([
+      deps.chain.marketInfoBatch(rows.map((market) => market.id)),
+      deps.chain.oracleStatusBatch(metricIds),
+    ]);
+    const cards = rows.map((market) => {
+      const info = infos.get(market.id);
+      const metricId = asMetricId(market.metricId);
+      const status = metricId === null ? undefined : statuses.get(metricId);
+      return {
+        marketId: market.id,
+        type: market.type,
+        status: market.status,
+        metricId: market.metricId,
+        markPrice: info?.markPrice === null || info === undefined ? null : formatWad(info.markPrice),
+        metricValue: status === undefined ? null : status.value.toString(),
+        change24hBps:
+          status === undefined
+            ? null
+            : status.twap24h === null
+              ? 0
+              : changeBps(status.value, status.twap24h),
+        oracleState: status?.state ?? "not_registered",
+        openInterestLong: formatWad(info?.openInterestLong ?? 0n),
+        openInterestShort: formatWad(info?.openInterestShort ?? 0n),
+        fundingGrowth: (info?.fundingGrowth ?? 0n).toString(),
+        updatedAt: new Date().toISOString(),
+      };
+    });
     return c.json({ markets: cards, source: "chain+oracle", site: DEFAULT_APP_URL });
   });
 

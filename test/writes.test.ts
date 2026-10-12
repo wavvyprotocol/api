@@ -503,6 +503,34 @@ describe("write endpoints", () => {
     assert.equal(rows.filter((row) => row.isPrimary).length, 1, "linking a second wallet demotes the first");
   });
 
+  it("moves an address-keyed curator_stats row onto the user id when a wallet links", async () => {
+    const { db } = await testDb();
+    const address = (TEST_USER.walletAddress as string).toLowerCase();
+    await db.insert(schema.curatorStats).values({ userId: address, activeCalls: 5 });
+
+    const userId = await ensureUser(db, TEST_USER);
+
+    const rows = await db.select().from(schema.curatorStats);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.userId, userId);
+    assert.equal(rows[0]?.activeCalls, 5, "the linked row keeps its stats");
+  });
+
+  it("drops the stale address-keyed curator_stats row when the user already has one", async () => {
+    const { db } = await testDb();
+    const address = (TEST_USER.walletAddress as string).toLowerCase();
+    const userId = await ensureUser(db, TEST_USER);
+    await db.insert(schema.curatorStats).values({ userId, activeCalls: 9 });
+    await db.insert(schema.curatorStats).values({ userId: address, activeCalls: 1 });
+
+    await ensureUser(db, TEST_USER);
+
+    const rows = await db.select().from(schema.curatorStats);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.userId, userId);
+    assert.equal(rows[0]?.activeCalls, 9, "the user's own row wins");
+  });
+
   it("counts requests through the memory limiter and then refuses", async () => {
     const { db } = await testDb();
     await seedMarket(db, { id: 6 });

@@ -48,6 +48,17 @@ export async function ensureUser(db: Database, user: AuthUser): Promise<string> 
           target: wallets.address,
           set: { userId: row.id, isPrimary: true, verifiedAt: new Date() },
         });
+      /// The projection keys `curator_stats` by the user id when the wallet is
+      /// known, otherwise by the raw address. A row created before the link is
+      /// address-keyed and would go stale here; move it to the user id, dropping
+      /// it if the user already has one. The next sync then refreshes it.
+      const key = address.toLowerCase();
+      await tx.execute(sql`
+        update curator_stats set user_id = ${row.id}
+        where user_id = ${key}
+          and not exists (select 1 from curator_stats where user_id = ${row.id})
+      `);
+      await tx.execute(sql`delete from curator_stats where user_id = ${key}`);
     }
     return row.id;
   });

@@ -7,6 +7,7 @@ export type Database = PostgresJsDatabase<typeof schema>;
 
 export type Db = {
   db: Database;
+  sql: Sql;
   close(): Promise<void>;
 };
 
@@ -20,6 +21,7 @@ export function connect(env: { DATABASE_URL?: string; NODE_ENV?: string }, logge
   logger.info("database client ready", { host: new URL(url).host });
   return {
     db,
+    sql,
     async close(): Promise<void> {
       await sql.end({ timeout: 5 });
     },

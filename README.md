@@ -62,7 +62,7 @@ at 32 KB before parsing (413 above that).
 Every error uses one shape: `{ "error": { "code", "message", "requestId" } }`
 with codes `invalid_request`, `unauthorized`, `forbidden`, `not_found`,
 `conflict`, `rate_limited`, `unavailable`, `internal_error`. Every response
-carries `x-request-id`; every 5xx logs at Error with that id.
+carries `x-request-id`, every 5xx logs at Error with that id.
 
 Auth rejection drill, recorded on 2026-10-08 against the contract server:
 
@@ -81,7 +81,7 @@ Every response carries `x-request-id` and `x-ratelimit-*` headers.
 Drizzle schema in `src/db/schema.ts`, migrations in `drizzle/`. Tables: `users`,
 `wallets`, `markets`, `positions`, `feed_posts`, `reactions`, `replies`,
 `creators`, `creator_accruals`, `curator_calls`, `copies`, `trader_stats`,
-`curator_stats`, `indexer_state`. The indexer (Phase 4) is the only writer for
+`curator_stats`, `indexer_state`. The indexer is the only writer for
 `positions`, `trader_stats`, `curator_stats`, `creator_accruals`, and
 `indexer_state`; the API writes `users`, `wallets`, `feed_posts`, `reactions`,
 `replies`, `curator_calls`, `copies`, and the creator verification columns.
@@ -89,19 +89,70 @@ Drizzle schema in `src/db/schema.ts`, migrations in `drizzle/`. Tables: `users`,
 Amounts are WAD (1e18) decimal strings end to end, never floats. PnL, equity,
 and funding mirror the contract math in `WavvyHouse` (see `src/math.ts`).
 
+### Projection from the indexer
+
+Indexer writes its entity tables into a schema of the same database, one table per entity plus a per-chain copy named `<Entity>$10143`. Both sides agree on the
+schema name `envio`: the indexer's `ENVIO_PG_SCHEMA` and the API's `INDEXER_PG_SCHEMA` must name the same schema. `npm run sync:indexer` projects
+those rows into the tables above:
+
+```bash
+npm run sync:indexer
+# markets: 27 rows
+# positions: 0 rows
+# trader_stats: 0 rows
+# curator_stats: 0 rows
+# creator_accruals: 0 rows
+# indexer_state: 1 rows
+```
+
+It is one `insert ... select ... on conflict do update` per table, so running it
+again converges on the indexer's current state and never duplicates rows. Enums
+and per-chain table names are handled in `src/indexer-sync.ts`;
+`INDEXER_PG_SCHEMA` and `INDEXER_CHAIN_ID` override the defaults.
+
+The API runs the same projection in-process: once on startup and then every
+`SYNC_INTERVAL_MS` (default 60000). Set `SYNC_INTERVAL_MS=0` to disable the
+scheduler and keep only the manual command. A separate cron service would be a
+third always-on service for a testnet deploy, so in-process is the pragmatic
+choice. Each statement runs in its own try/catch: a failing table is logged at
+Error level with its message, it is reported as `0 rows` with an error on the
+CLI, and the loop continues so later tables (notably `indexer_state`) still
+advance. A failing tick never crashes the process; the next tick retries.
+
+`creator_accruals` has a foreign key to `creators.creator_id`. If the indexer
+has an accrual for a creator the API has never seen, that one statement fails
+and is logged rather than fabricating a placeholder `creators` row with a
+made-up platform and handle; backfill the creator through the verification flow
+and the next tick lands the accrual.
+
+When a wallet links to a user, the API re-keys any address-keyed
+`curator_stats` row onto the user id (dropping it if the user already has one)
+so the projection's `coalesce(w.user_id, lower(c."curator"))` key stays stable
+across the link.
+
+An unconfigured `DATABASE_URL`, or an indexer schema that is not in this
+database, leaves the projection with nothing to read: the scheduler is skipped,
+`/health` reports `database: false`, and the read endpoints answer 503.
+
 ## Environment variables
 
 Copy `.env.example` to `.env` and fill in real values.
+
+`GET /markets` reads the whole list in two batched calls (factory state, oracle
+state) instead of a few calls per market: a per-market read pattern trips a shared RPC endpoint's rate limit. Configure `MONAD_TESTNET_RPC_URL` with an
+endpoint whose `eth_call` quota fits a market list read.
 
 | Variable | Purpose |
 | --- | --- |
 | `PORT`, `HOST` | listen port and bind address (loopback by default) |
 | `NODE_ENV`, `LOG_LEVEL`, `DEBUG_LOGS` | runtime mode and pino level |
 | `DATABASE_URL` | Supabase Postgres pooler connection string (port 6543) |
+| `INDEXER_PG_SCHEMA`, `INDEXER_CHAIN_ID` | indexer projection source schema (`envio`) and per-chain table suffix (`10143`) |
+| `SYNC_INTERVAL_MS` | in-process projection interval in ms; default 60000, `0` disables |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | rate limiting; unset falls back to per-process memory |
 | `PRIVY_APP_ID`, `PRIVY_APP_SECRET` | Privy token verification; unset disables writes with 503 |
 | `MONAD_TESTNET_RPC_URL`, `MONAD_CHAIN_ID` | chain reads |
-| `MULTICALL3_ADDRESS` | batched view reads (canonical multicall3 by default; falls back to single reads) |
+| `MULTICALL3_ADDRESS` | batched view reads (canonical multicall3 by default; falls back to sequential single reads) |
 | `CHAIN_CACHE_TTL_MS` | per-process chain read cache, default 5000 |
 | `WAVVY_ORACLE_ADDRESS`, `WAVVY_INDEX_ORACLE_ADDRESS`, `WAVVY_AMM_ADDRESS`, `WAVVY_FACTORY_ADDRESS`, `WAVVY_POSITION_ADDRESS`, `WAVVY_CREATOR_REWARDS_ADDRESS`, `WAVVY_CURATOR_ADDRESS` | deployed contracts, from `wavvy-contracts/deployments/monadTestnet.json` |
 | `VERIFY_ADMIN_TOKEN` | manual creator verification; unset disables the approve endpoint |

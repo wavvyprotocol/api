@@ -281,6 +281,12 @@ export type OracleStatus = {
   state: "fresh" | "stale" | "suspended" | "frozen" | "not_registered";
 };
 
+/// `oracleStatus` for a list of metrics, plus the 24 hour TWAP the market list
+/// needs for its change reading.
+export type OracleStatusBatchEntry = OracleStatus & { twap24h: bigint | null };
+
+export const DAY_SECONDS = 86_400;
+
 export type ChainPosition = {
   tokenId: string;
   marketId: number;
@@ -301,7 +307,14 @@ export type StakeVerification =
 
 export type ChainReader = {
   marketInfo(marketId: number): Promise<MarketInfo>;
+  /// Reads many markets in two batched calls instead of two calls per market.
+  marketInfoBatch(marketIds: readonly number[]): Promise<Map<number, MarketInfo>>;
   oracleStatus(metricId: `0x${string}`): Promise<OracleStatus>;
+  /// Reads many oracle states in two batched calls; unreadable metrics are absent
+  /// from the map rather than failing the whole list.
+  oracleStatusBatch(
+    metricIds: readonly `0x${string}`[],
+  ): Promise<Map<`0x${string}`, OracleStatusBatchEntry>>;
   indexValue(marketId: number): Promise<{ value: bigint; valid: boolean } | null>;
   twap(metricId: `0x${string}`, windowSeconds: number): Promise<bigint | null>;
   position(tokenId: string): Promise<ChainPosition | null>;
@@ -393,28 +406,153 @@ export function createChainReader(env: ChainConfig, logger: Logger): ChainReader
     multicallAddress: `0x${string}`;
   }) => Promise<Array<{ status: "success" | "failure"; result?: unknown }>>;
 
-  const readBatch = async <T>(contracts: readonly BatchCall[]): Promise<T[]> => {
+  type BatchValue<T> = { ok: true; value: T } | { ok: false };
+
+  /// Individual failures are reported per entry: a market that does not exist
+  /// makes `marketTypeOf` revert, and that must not fail the other entries.
+  const readBatch = async <T>(contracts: readonly BatchCall[]): Promise<Array<BatchValue<T>>> => {
+    if (contracts.length === 0) {
+      return [];
+    }
     try {
       const results = await multicall({ contracts, allowFailure: true, multicallAddress });
-      return results.map((entry, index) => {
-        if (entry.status === "success") {
-          return entry.result as T;
-        }
-        throw new Error(`batch call ${contracts[index]?.functionName ?? index} failed`);
+      return results.map((entry) =>
+        entry.status === "success"
+          ? ({ ok: true, value: entry.result as T } as const)
+          : ({ ok: false } as const),
+      );
+    } catch (error) {
+      // Sequential on purpose: a wake of parallel calls is what trips a shared
+      // RPC rate limit, and this path only runs when batching is unavailable.
+      logger.debug("multicall unavailable, reading individually", {
+        count: contracts.length,
+        cause: error instanceof Error ? error.message : String(error),
       });
-    } catch {
-      return Promise.all(
-        contracts.map(
-          (contract) =>
-            client.readContract({
+      const values: Array<BatchValue<T>> = [];
+      for (const contract of contracts) {
+        try {
+          values.push({
+            ok: true,
+            value: (await client.readContract({
               address: contract.address,
               abi: contract.abi,
               functionName: contract.functionName,
               args: contract.args,
-            }) as Promise<T>,
-        ),
-      );
+            })) as T,
+          });
+        } catch (entryError) {
+          logger.debug("chain read failed", {
+            functionName: contract.functionName,
+            address: contract.address,
+            cause: entryError instanceof Error ? entryError.message : String(entryError),
+          });
+          values.push({ ok: false });
+        }
+      }
+      return values;
     }
+  };
+
+  const pick = <T>(entry: BatchValue<T> | undefined, fallback: T): T =>
+    entry !== undefined && entry.ok ? entry.value : fallback;
+
+  const zeroMetric = `0x${"0".repeat(64)}` as `0x${string}`;
+  type OracleConfig = readonly [bigint, bigint, bigint, number, number, boolean];
+  type OracleStateValue = bigint | boolean | OracleConfig;
+
+  const marketFactoryCalls = (marketId: number): BatchCall[] => [
+    { address: factory, abi: factoryAbi, functionName: "marketExists", args: [BigInt(marketId)] },
+    { address: factory, abi: factoryAbi, functionName: "marketTypeOf", args: [BigInt(marketId)] },
+  ];
+
+  const marketStateCalls = (marketId: number): BatchCall[] => [
+    { address: factory, abi: factoryAbi, functionName: "metricOf", args: [BigInt(marketId)] },
+    { address: factory, abi: factoryAbi, functionName: "creatorIdsOf", args: [BigInt(marketId)] },
+    { address: amm, abi: ammAbi, functionName: "markPrice", args: [BigInt(marketId)] },
+    { address: amm, abi: ammAbi, functionName: "fundingGrowth", args: [BigInt(marketId)] },
+    { address: amm, abi: ammAbi, functionName: "openInterest", args: [BigInt(marketId)] },
+  ];
+
+  const oracleStateCalls = (metricId: `0x${string}`): BatchCall[] => [
+    { address: oracle, abi: oracleAbi, functionName: "latestValue", args: [metricId] },
+    { address: oracle, abi: oracleAbi, functionName: "lastUpdateAt", args: [metricId] },
+    { address: oracle, abi: oracleAbi, functionName: "isFresh", args: [metricId] },
+    { address: oracle, abi: oracleAbi, functionName: "isSuspended", args: [metricId] },
+    { address: oracle, abi: oracleAbi, functionName: "isFrozen", args: [metricId] },
+    { address: oracle, abi: oracleAbi, functionName: "metricConfig", args: [metricId] },
+  ];
+
+  const missingMarket = (marketId: number): MarketInfo => ({
+    marketId,
+    exists: false,
+    type: "unknown",
+    metricId: null,
+    creatorIds: [],
+    markPrice: null,
+    fundingGrowth: 0n,
+    openInterestLong: 0n,
+    openInterestShort: 0n,
+  });
+
+  const assembleMarketInfo = (
+    marketId: number,
+    typeEntry: BatchValue<boolean | number> | undefined,
+    state: ReadonlyArray<BatchValue<`0x${string}` | `0x${string}`[] | bigint | readonly [bigint, bigint]>>,
+  ): MarketInfo => {
+    const metricId = pick(state[0] as BatchValue<`0x${string}`> | undefined, zeroMetric);
+    const interest = pick(
+      state[4] as BatchValue<readonly [bigint, bigint]> | undefined,
+      [0n, 0n] as const,
+    );
+    return {
+      marketId,
+      exists: true,
+      type: Number(pick(typeEntry, 0)) === 1 ? "index" : "single_name",
+      metricId: metricId === zeroMetric ? null : metricId,
+      creatorIds: [
+        ...pick(state[1] as BatchValue<`0x${string}`[]> | undefined, []),
+      ],
+      markPrice: pick(state[2] as BatchValue<bigint> | undefined, 0n),
+      fundingGrowth: pick(state[3] as BatchValue<bigint> | undefined, 0n),
+      openInterestLong: interest[0],
+      openInterestShort: interest[1],
+    };
+  };
+
+  const assembleOracleStatus = (
+    metricId: `0x${string}`,
+    state: ReadonlyArray<BatchValue<OracleStateValue>>,
+    twaps: { twap: bigint | null; twap24h: bigint | null },
+  ): OracleStatusBatchEntry => {
+    const config = pick(
+      state[5] as BatchValue<OracleConfig> | undefined,
+      [0n, 0n, 0n, 0, 0, false] as const,
+    );
+    const registered = config[5];
+    const fresh = pick(state[2] as BatchValue<boolean> | undefined, false);
+    const suspended = pick(state[3] as BatchValue<boolean> | undefined, false);
+    const frozen = pick(state[4] as BatchValue<boolean> | undefined, false);
+    const stateName = !registered
+      ? ("not_registered" as const)
+      : frozen
+        ? ("frozen" as const)
+        : suspended
+          ? ("suspended" as const)
+          : fresh
+            ? ("fresh" as const)
+            : ("stale" as const);
+    return {
+      metricId,
+      value: pick(state[0] as BatchValue<bigint> | undefined, 0n),
+      twap: registered ? twaps.twap : null,
+      twap24h: registered ? twaps.twap24h : null,
+      lastUpdateAt: Number(pick(state[1] as BatchValue<bigint> | undefined, 0n)),
+      fresh,
+      suspended,
+      frozen,
+      registered,
+      state: stateName,
+    };
   };
 
   logger.info("chain reader ready", {
@@ -425,96 +563,130 @@ export function createChainReader(env: ChainConfig, logger: Logger): ChainReader
   return {
     async marketInfo(marketId): Promise<MarketInfo> {
       return cached(`market:${marketId}`, async () => {
-        const [exists, typeRaw] = await readBatch<boolean | number>([
-          { address: factory, abi: factoryAbi, functionName: "marketExists", args: [BigInt(marketId)] },
-          { address: factory, abi: factoryAbi, functionName: "marketTypeOf", args: [BigInt(marketId)] },
-        ]);
-        if (!exists) {
-          return {
-            marketId,
-            exists: false,
-            type: "unknown" as const,
-            metricId: null,
-            creatorIds: [],
-            markPrice: null,
-            fundingGrowth: 0n,
-            openInterestLong: 0n,
-            openInterestShort: 0n,
-          };
+        const factoryResults = await readBatch<boolean | number>(marketFactoryCalls(marketId));
+        if (pick(factoryResults[0] as BatchValue<boolean> | undefined, false) !== true) {
+          return missingMarket(marketId);
         }
-
-        const [metricId, creatorIds, markPrice, fundingGrowth, openInterest] = await readBatch<
-          `0x${string}` | `0x${string}`[] | bigint | readonly [bigint, bigint]
-        >([
-          { address: factory, abi: factoryAbi, functionName: "metricOf", args: [BigInt(marketId)] },
-          { address: factory, abi: factoryAbi, functionName: "creatorIdsOf", args: [BigInt(marketId)] },
-          { address: amm, abi: ammAbi, functionName: "markPrice", args: [BigInt(marketId)] },
-          { address: amm, abi: ammAbi, functionName: "fundingGrowth", args: [BigInt(marketId)] },
-          { address: amm, abi: ammAbi, functionName: "openInterest", args: [BigInt(marketId)] },
-        ]);
-        const interest = openInterest as readonly [bigint, bigint];
-
-        return {
+        const state = await readBatch<`0x${string}` | `0x${string}`[] | bigint | readonly [bigint, bigint]>(
+          marketStateCalls(marketId),
+        );
+        return assembleMarketInfo(
           marketId,
-          exists: true,
-          type: Number(typeRaw) === 1 ? ("index" as const) : ("single_name" as const),
-          metricId: metricId === `0x${"0".repeat(64)}` ? null : (metricId as `0x${string}`),
-          creatorIds: [...(creatorIds as `0x${string}`[])],
-          markPrice: markPrice as bigint,
-          fundingGrowth: fundingGrowth as bigint,
-          openInterestLong: interest[0],
-          openInterestShort: interest[1],
-        };
+          factoryResults[1] as BatchValue<boolean | number> | undefined,
+          state,
+        );
       });
     },
 
+    async marketInfoBatch(marketIds): Promise<Map<number, MarketInfo>> {
+      const unique = [...new Set(marketIds)];
+      const result = new Map<number, MarketInfo>();
+      if (unique.length === 0) {
+        return result;
+      }
+      const factoryResults = await readBatch<boolean | number>(
+        unique.flatMap((marketId) => marketFactoryCalls(marketId)),
+      );
+      const existing = unique.filter(
+        (_, index) =>
+          pick(factoryResults[index * 2] as BatchValue<boolean> | undefined, false) === true,
+      );
+      const state = await readBatch<`0x${string}` | `0x${string}`[] | bigint | readonly [bigint, bigint]>(
+        existing.flatMap((marketId) => marketStateCalls(marketId)),
+      );
+      const stateIndex = new Map(existing.map((marketId, index) => [marketId, index]));
+      for (const [index, marketId] of unique.entries()) {
+        if (pick(factoryResults[index * 2] as BatchValue<boolean> | undefined, false) !== true) {
+          result.set(marketId, missingMarket(marketId));
+          continue;
+        }
+        const base = (stateIndex.get(marketId) ?? 0) * 5;
+        result.set(
+          marketId,
+          assembleMarketInfo(
+            marketId,
+            factoryResults[index * 2 + 1] as BatchValue<boolean | number> | undefined,
+            state.slice(base, base + 5),
+          ),
+        );
+      }
+      return result;
+    },
+
     async oracleStatus(metricId): Promise<OracleStatus> {
-      const [value, lastUpdateAt, fresh, suspended, frozen, config] = await readBatch<
-        bigint | boolean | readonly [bigint, bigint, bigint, number, number, boolean]
-      >([
-        { address: oracle, abi: oracleAbi, functionName: "latestValue", args: [metricId] },
-        { address: oracle, abi: oracleAbi, functionName: "lastUpdateAt", args: [metricId] },
-        { address: oracle, abi: oracleAbi, functionName: "isFresh", args: [metricId] },
-        { address: oracle, abi: oracleAbi, functionName: "isSuspended", args: [metricId] },
-        { address: oracle, abi: oracleAbi, functionName: "isFrozen", args: [metricId] },
-        { address: oracle, abi: oracleAbi, functionName: "metricConfig", args: [metricId] },
-      ]).then((results) => results as [
-        bigint,
-        bigint,
-        boolean,
-        boolean,
-        boolean,
-        readonly [bigint, bigint, bigint, number, number, boolean],
-      ]);
-      const registered = config[5];
-      const twap = registered
-        ? await client.readContract({
-            address: oracle,
-            abi: oracleAbi,
-            functionName: "getTWAP",
-            args: [metricId, config[1]],
-          })
-        : null;
-      const state: OracleStatus["state"] = !registered
-        ? "not_registered"
-        : frozen
-          ? "frozen"
-          : suspended
-            ? "suspended"
-            : fresh
-              ? "fresh"
-              : "stale";
-      return {
-        metricId,
-        value,
-        twap,
-        lastUpdateAt: Number(lastUpdateAt),
-        fresh,
-        suspended,
-        frozen,
-        registered,
-        state,
-      };
+      const state = await readBatch<OracleStateValue>(oracleStateCalls(metricId));
+      const config = pick(
+        state[5] as BatchValue<OracleConfig> | undefined,
+        [0n, 0n, 0n, 0, 0, false] as const,
+      );
+      const twapResults =
+        config[5] === true
+          ? await readBatch<bigint>([
+              { address: oracle, abi: oracleAbi, functionName: "getTWAP", args: [metricId, config[1]] },
+            ])
+          : [];
+      return assembleOracleStatus(metricId, state, {
+        twap: pick(twapResults[0] as BatchValue<bigint> | undefined, null as bigint | null),
+        twap24h: null,
+      });
+    },
+
+    async oracleStatusBatch(metricIds): Promise<Map<`0x${string}`, OracleStatusBatchEntry>> {
+      const unique = [...new Set(metricIds)];
+      const result = new Map<`0x${string}`, OracleStatusBatchEntry>();
+      if (unique.length === 0) {
+        return result;
+      }
+      const state = await readBatch<OracleStateValue>(
+        unique.flatMap((metricId) => oracleStateCalls(metricId)),
+      );
+      const registered = unique.flatMap((metricId, index) => {
+        const configEntry = state[index * 6 + 5] as BatchValue<OracleConfig> | undefined;
+        if (configEntry === undefined || !configEntry.ok || configEntry.value[5] !== true) {
+          return [];
+        }
+        return [{ metricId, window: configEntry.value[1] }];
+      });
+      const twapResults =
+        registered.length > 0
+          ? await readBatch<bigint>(
+              registered.flatMap((entry) => [
+                {
+                  address: oracle,
+                  abi: oracleAbi,
+                  functionName: "getTWAP",
+                  args: [entry.metricId, entry.window],
+                },
+                {
+                  address: oracle,
+                  abi: oracleAbi,
+                  functionName: "getTWAP",
+                  args: [entry.metricId, BigInt(DAY_SECONDS)],
+                },
+              ]),
+            )
+          : [];
+      const twapIndex = new Map(registered.map((entry, index) => [entry.metricId, index]));
+      for (const [index, metricId] of unique.entries()) {
+        const twapPosition = twapIndex.get(metricId);
+        result.set(
+          metricId,
+          assembleOracleStatus(metricId, state.slice(index * 6, index * 6 + 6), {
+            twap:
+              twapPosition === undefined
+                ? null
+                : pick(twapResults[twapPosition * 2] as BatchValue<bigint> | undefined, null as bigint | null),
+            twap24h:
+              twapPosition === undefined
+                ? null
+                : pick(
+                    twapResults[twapPosition * 2 + 1] as BatchValue<bigint> | undefined,
+                    null as bigint | null,
+                  ),
+          }),
+        );
+      }
+      return result;
     },
 
     async twap(metricId, windowSeconds) {

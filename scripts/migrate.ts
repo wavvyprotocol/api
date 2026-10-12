@@ -1,6 +1,11 @@
 import { readdirSync, readFileSync } from "node:fs";
 import postgres from "postgres";
 
+try {
+  process.loadEnvFile(".env");
+} catch {
+}
+
 const direction = process.argv[2] === "down" ? "down" : "up";
 const url = process.env.DATABASE_URL;
 if (!url) {

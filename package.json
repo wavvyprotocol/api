@@ -16,7 +16,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:studio": "drizzle-kit studio",
-    "contract:server": "tsx scripts/contract-server.ts"
+    "contract:server": "tsx scripts/contract-server.ts",
+    "sync:indexer": "tsx scripts/sync-indexer.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.4",
